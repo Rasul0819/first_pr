@@ -13,6 +13,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from database import EXPENSE, Database, MonthSummary, Transaction
+from locales import kaa as T
 from utils import month_title
 
 MONEY = '#,##0.00'
@@ -54,7 +55,7 @@ def _kpi(ws: Worksheet, col: int, label: str, value, color: str, fmt: str | None
 def _breakdown(ws: Worksheet, row: int, col: int, title: str, head: str, data: dict[str, int]) -> int:
     """Write a ranked table; returns the last used row."""
     ws.cell(row=row, column=col, value=title).font = Font(bold=True, size=12, color=DARK)
-    _header(ws, row + 1, col, [head, "Amount", "Share"])
+    _header(ws, row + 1, col, [head, T.COL_AMOUNT, T.COL_SHARE])
     total = sum(data.values()) or 1
     r = row + 2
     for name, cents in data.items():
@@ -76,31 +77,31 @@ def build_workbook(year: int, month: int, summary: MonthSummary,
                    txs: list[Transaction], owner: str = "") -> Workbook:
     wb = Workbook()
     ws = wb.active
-    ws.title = "Dashboard"
+    ws.title = T.SHEET_DASHBOARD
     ws.sheet_view.showGridLines = False
 
     ws.merge_cells("A1:H1")
-    ws["A1"] = f"Monthly report — {month_title(year, month)}"
+    ws["A1"] = T.REPORT_TITLE.format(title=month_title(year, month))
     ws["A1"].font = Font(size=20, bold=True, color=DARK)
     if owner:
         _text(ws["A2"], owner)
         ws["A2"].font = Font(color=GREY, italic=True)
 
     net = summary.net_cents
-    rate = (net / summary.income_cents) if summary.income_cents else "n/a"
-    _kpi(ws, 1, "TOTAL INCOME", summary.income_cents / 100, GREEN)
-    _kpi(ws, 3, "TOTAL EXPENSES", summary.expense_cents / 100, RED)
-    _kpi(ws, 5, "NET BALANCE", net / 100, GREEN if net >= 0 else RED)
-    _kpi(ws, 7, "SAVINGS RATE", rate, GREEN if net >= 0 else RED, "0.0%")
+    rate = (net / summary.income_cents) if summary.income_cents else T.NOT_AVAILABLE
+    _kpi(ws, 1, T.KPI_INCOME, summary.income_cents / 100, GREEN)
+    _kpi(ws, 3, T.KPI_EXPENSE, summary.expense_cents / 100, RED)
+    _kpi(ws, 5, T.KPI_NET, net / 100, GREEN if net >= 0 else RED)
+    _kpi(ws, 7, T.KPI_SAVINGS_RATE, rate, GREEN if net >= 0 else RED, "0.0%")
     ws.row_dimensions[4].height = 32
 
-    end1 = _breakdown(ws, 6, 1, "Expenses by category", "Category", summary.by_category)
-    end2 = _breakdown(ws, 6, 5, "Income by source", "Source", summary.by_source)
+    end1 = _breakdown(ws, 6, 1, T.SECTION_EXPENSES, T.COL_CATEGORY, summary.by_category)
+    end2 = _breakdown(ws, 6, 5, T.SECTION_INCOME, T.COL_SOURCE, summary.by_source)
     next_row = max(end1, end2) + 2
 
     days = calendar.monthrange(year, month)[1]
-    daily = wb.create_sheet("Daily")
-    _header(daily, 1, 1, ["Day", "Income", "Expenses"])
+    daily = wb.create_sheet(T.SHEET_DAILY)
+    _header(daily, 1, 1, [T.COL_DAY, T.COL_INCOME, T.COL_EXPENSE])
     inc, exp = [0] * (days + 1), [0] * (days + 1)
     for t in txs:
         (exp if t.kind == EXPENSE else inc)[int(t.tx_date[8:10])] += t.amount_cents
@@ -114,7 +115,7 @@ def build_workbook(year: int, month: int, summary: MonthSummary,
     if txs:
         if summary.by_category:
             pie = PieChart()
-            pie.title = "Expenses by category"
+            pie.title = T.CHART_EXPENSES
             pie.add_data(Reference(ws, min_col=2, min_row=7, max_row=7 + len(summary.by_category)),
                          titles_from_data=True)
             pie.set_categories(Reference(ws, min_col=1, min_row=8, max_row=7 + len(summary.by_category)))
@@ -123,22 +124,22 @@ def build_workbook(year: int, month: int, summary: MonthSummary,
             pie.height, pie.width = 8.5, 11
             ws.add_chart(pie, f"A{next_row}")
         bar = BarChart()
-        bar.type, bar.title = "col", "Daily income vs expenses"
+        bar.type, bar.title = "col", T.CHART_DAILY
         bar.add_data(Reference(daily, min_col=2, max_col=3, min_row=1, max_row=days + 1), titles_from_data=True)
         bar.set_categories(Reference(daily, min_col=1, min_row=2, max_row=days + 1))
         bar.height, bar.width = 8.5, 14
         ws.add_chart(bar, f"E{next_row}")
     else:
-        ws.cell(row=next_row, column=1, value="No transactions recorded this month.").font = Font(italic=True, color=GREY)
+        ws.cell(row=next_row, column=1, value=T.NO_TRANSACTIONS).font = Font(italic=True, color=GREY)
 
     for i in range(1, 9):
         ws.column_dimensions[get_column_letter(i)].width = 16
 
-    tx_ws = wb.create_sheet("Transactions")
-    _header(tx_ws, 1, 1, ["Date", "Type", "Category / Source", "Note", "Amount"])
+    tx_ws = wb.create_sheet(T.SHEET_TRANSACTIONS)
+    _header(tx_ws, 1, 1, [T.COL_DATE, T.COL_TYPE, T.COL_CATEGORY_SOURCE, T.COL_NOTE, T.COL_AMOUNT])
     for r, t in enumerate(txs, start=2):
         tx_ws.cell(row=r, column=1, value=t.tx_date)
-        tx_ws.cell(row=r, column=2, value="Expense" if t.kind == EXPENSE else "Income")
+        tx_ws.cell(row=r, column=2, value=T.COL_EXPENSE if t.kind == EXPENSE else T.COL_INCOME)
         _text(tx_ws.cell(row=r, column=3), t.category)
         _text(tx_ws.cell(row=r, column=4), t.note)
         amt = tx_ws.cell(row=r, column=5, value=(-t.amount_cents if t.kind == EXPENSE else t.amount_cents) / 100)

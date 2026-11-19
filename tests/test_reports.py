@@ -34,8 +34,8 @@ async def test_workbook_contents(seeded):
     name, data = await generate_monthly_report(seeded, 1, 2025, 3, owner="Alice")
     assert name == "report_2025-03.xlsx"
     wb = load_workbook(BytesIO(data))
-    assert wb.sheetnames == ["Dashboard", "Daily", "Transactions"]
-    ws = wb["Dashboard"]
+    assert wb.sheetnames == [T.SHEET_DASHBOARD, T.SHEET_DAILY, T.SHEET_TRANSACTIONS]
+    ws = wb[T.SHEET_DASHBOARD]
     assert "2025-jıl Mart" in ws["A1"].value
     assert ws["A4"].value == 3500.0          # income
     assert ws["C4"].value == 1500.5          # expenses
@@ -50,7 +50,7 @@ async def test_workbook_contents(seeded):
 
 async def test_transactions_sheet_and_formula_injection(seeded):
     _, data = await generate_monthly_report(seeded, 1, 2025, 3)
-    tx = load_workbook(BytesIO(data))["Transactions"]
+    tx = load_workbook(BytesIO(data))[T.SHEET_TRANSACTIONS]
     rows = list(tx.iter_rows(min_row=2, values_only=True))
     assert len(rows) == 4                      # April entry excluded
     note_cell = next(c for r in tx.iter_rows(min_row=2) for c in r if c.value == "=1+1")
@@ -60,7 +60,7 @@ async def test_transactions_sheet_and_formula_injection(seeded):
 
 async def test_daily_sheet(seeded):
     _, data = await generate_monthly_report(seeded, 1, 2025, 3)
-    d = load_workbook(BytesIO(data))["Daily"]
+    d = load_workbook(BytesIO(data))[T.SHEET_DAILY]
     assert d.max_row == 32                      # header + 31 days
     assert d["B6"].value == 3000.0 and d["C6"].value == 1200.0   # day 5
     assert d["B32"].value == 500.0
@@ -70,17 +70,17 @@ async def test_empty_month_report(db):
     await db.upsert_user(1, None, None)
     _, data = await generate_monthly_report(db, 1, 2024, 2)   # leap year
     wb = load_workbook(BytesIO(data))
-    ws = wb["Dashboard"]
-    assert ws["A4"].value == 0 and ws["G4"].value == "n/a"
-    assert "No transactions" in ws["A10"].value
-    assert wb["Daily"].max_row == 30            # 29 days + header
+    ws = wb[T.SHEET_DASHBOARD]
+    assert ws["A4"].value == 0 and ws["G4"].value == T.NOT_AVAILABLE
+    assert ws["A10"].value == T.NO_TRANSACTIONS
+    assert wb[T.SHEET_DAILY].max_row == 30            # 29 days + header
 
 
 async def test_negative_net_and_only_income(db):
     await db.upsert_user(1, None, None)
     await db.add_transaction(1, EXPENSE, 500, "X", tx_date=date(2025, 12, 31))
     _, data = await generate_monthly_report(db, 1, 2025, 12)
-    ws = load_workbook(BytesIO(data))["Dashboard"]
+    ws = load_workbook(BytesIO(data))[T.SHEET_DASHBOARD]
     assert ws["E4"].value == -5.0
     assert ws["E4"].font.color.rgb.endswith("C62828")
 
@@ -135,3 +135,23 @@ async def test_scheduler_january_rolls_back_year(seeded):
 def test_seconds_until_next_run():
     assert seconds_until_next_run(datetime(2025, 1, 1, 8, 0)) == 3600
     assert seconds_until_next_run(datetime(2025, 1, 1, 9, 0)) == 86400
+
+
+async def test_karakalpak_text_in_workbook_and_utf8_xml(seeded):
+    import zipfile
+    _, data = await generate_monthly_report(seeded, 1, 2025, 3, owner="Alice")
+    ws = load_workbook(BytesIO(data))[T.SHEET_DASHBOARD]
+    assert ws["A1"].value == "Ay esabatı — 2025-jıl Mart"
+    assert (ws["A3"].value, ws["C3"].value, ws["E3"].value) == (T.KPI_INCOME, T.KPI_EXPENSE, T.KPI_NET)
+    assert ws["A7"].value == T.COL_CATEGORY and ws["E7"].value == T.COL_SOURCE
+    import xml.etree.ElementTree as ET
+    texts = set()
+    with zipfile.ZipFile(BytesIO(data)) as z:
+        for n in z.namelist():
+            if n.endswith(".xml"):
+                texts.update(e.text for e in ET.fromstring(z.read(n)).iter() if e.text and e.text.strip())
+    blob = " | ".join(texts)   # parsed XML text (char refs like &#305; decoded)
+    for word in ("JÁMI SHIǴIN", "Shıǵınlar kategoriyalar boyınsha", "Úles", "Jazıwlar", T.SHEET_DASHBOARD):
+        assert word in blob, word
+    for english in ("Dashboard", "Expenses", "Income", "Category", "Transactions", "NET BALANCE", "Daily"):
+        assert english not in blob, english

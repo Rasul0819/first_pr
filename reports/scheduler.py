@@ -9,6 +9,7 @@ from aiogram import Bot
 from aiogram.types import BufferedInputFile
 
 from database import Database
+from locales import kaa as T
 from reports.monthly import generate_monthly_report
 from utils import month_title, previous_month
 
@@ -26,7 +27,7 @@ async def send_monthly_reports(bot: Bot, db: Database, today: date | None = None
         try:
             name, data = await generate_monthly_report(db, uid, year, month)
             await bot.send_document(uid, BufferedInputFile(data, name),
-                                    caption=f"📊 Your {month_title(year, month)} report")
+                                    caption=T.AUTO_REPORT_CAPTION.format(title=month_title(year, month)))
             sent += 1
         except Exception:  # one blocked user must not stop the rest
             log.exception("failed to send report to %s", uid)

@@ -10,7 +10,8 @@ from locales import kaa as T
 ROOT = Path(__file__).resolve().parent.parent
 # Files whose literals must contain no human-readable text (grows per stage).
 TRANSLATED_FILES = ["handlers/user.py", "keyboards/user.py",
-                    "handlers/admin.py", "keyboards/admin.py"]
+                    "handlers/admin.py", "keyboards/admin.py",
+                    "reports/monthly.py", "reports/scheduler.py"]
 
 ENGLISH = {
     "expense", "expenses", "income", "report", "cancel", "cancelled", "category", "categories",
@@ -29,6 +30,10 @@ def _human_literals(path: Path):
             if node.body and isinstance(node.body[0], ast.Expr) and isinstance(
                     getattr(node.body[0], "value", None), ast.Constant):
                 docstrings.add(id(node.body[0].value))
+    log_calls = {"exception", "info", "warning", "error", "debug"}  # developer logs, not UI
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "attr", "") in log_calls:
+            docstrings.update(id(c) for a in node.args for c in ast.walk(a))
     for node in ast.walk(tree):
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
             text = re.sub(r"<[^>]+>|\{[^}]*\}", "", node.value)

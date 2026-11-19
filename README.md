@@ -29,3 +29,9 @@ pytest
   `/report` or `/report 2025-03`; sent automatically on the 1st of each month at 09:00
 - 🛠 Admin (IDs in `ADMIN_IDS`): `/admin`, `/stats`, `/setplan <user_id> <free|pro> [days]`
   — `users.plan` / `plan_expires_at` and `Database.set_plan/active_plan` are the hooks for paid subscriptions
+
+## Language
+The whole interface and the Excel report are in Karakalpak (Latin script). All text lives in
+`locales/kaa.py`; handlers, keyboards and reports contain no literal UI text
+(enforced by `tests/test_localization.py`). Sample output: `samples/sample_report_kaa.xlsx`
+(regenerate with `python -m scripts.make_sample_report`).
