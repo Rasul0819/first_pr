@@ -11,6 +11,7 @@ from aiogram.enums import ParseMode
 from config import Settings, load_settings
 from database import Database
 from handlers import user
+from reports.scheduler import monthly_report_loop
 
 
 def build_dispatcher(db: Database, settings: Settings) -> Dispatcher:
@@ -29,9 +30,11 @@ async def main() -> None:
     db = Database(settings.db_path)
     await db.connect()
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    task = asyncio.create_task(monthly_report_loop(bot, db))
     try:
         await build_dispatcher(db, settings).start_polling(bot)
     finally:
+        task.cancel()
         await db.close()
         await bot.session.close()
 

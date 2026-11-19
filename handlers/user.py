@@ -4,14 +4,15 @@ from __future__ import annotations
 from html import escape
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandStart, StateFilter
+from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from database import EXPENSE, INCOME, Database, to_cents
 from keyboards import user as kb
-from utils import fmt_money
+from reports.monthly import generate_monthly_report, month_title
+from utils import current_year_month, fmt_money, previous_month
 
 router = Router(name="user")
 
@@ -190,3 +191,46 @@ async def delete_tx(call: CallbackQuery, db: Database) -> None:
     txs = await db.recent(call.from_user.id, 10)
     await call.message.edit_text(_history_text(txs), reply_markup=kb.history_kb(txs) if txs else None)
     await call.answer("Deleted" if ok else "Already deleted")
+
+
+# --------------------------------------------------------------- report
+async def _send_report(target: Message, db: Database, user, year: int, month: int) -> None:
+    s = await db.month_summary(user.id, year, month)
+    name, data = await generate_monthly_report(db, user.id, year, month, owner=user.full_name)
+    caption = "\n".join([
+        f"📊 <b>{month_title(year, month)}</b>",
+        f"Income: <b>{fmt_money(s.income_cents)}</b>",
+        f"Expenses: <b>{fmt_money(s.expense_cents)}</b>",
+        f"Net: <b>{fmt_money(s.net_cents)}</b>",
+    ])
+    await target.answer_document(BufferedInputFile(data, name), caption=caption)
+
+
+@router.message(F.text == kb.BTN_REPORT, StateFilter("*"))
+async def report_menu(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer("Which month?", reply_markup=kb.report_kb())
+
+
+@router.message(Command("report"), StateFilter("*"))
+async def report_cmd(message: Message, state: FSMContext, db: Database, command: CommandObject) -> None:
+    """/report -> this month; /report 2025-03 -> that month."""
+    await state.clear()
+    year, month = current_year_month()
+    if command.args:
+        try:
+            y, m = command.args.strip().split("-")
+            year, month = int(y), int(m)
+            if not (1 <= month <= 12 and 2000 <= year <= 2100):
+                raise ValueError
+        except ValueError:
+            await message.answer("Usage: <code>/report</code> or <code>/report 2025-03</code>")
+            return
+    await _send_report(message, db, message.from_user, year, month)
+
+
+@router.callback_query(F.data.in_({"report:current", "report:previous"}))
+async def report_cb(call: CallbackQuery, db: Database) -> None:
+    year, month = current_year_month() if call.data == "report:current" else previous_month()
+    await call.answer("Generating…")
+    await _send_report(call.message, db, call.from_user, year, month)
