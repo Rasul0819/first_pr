@@ -10,6 +10,7 @@ import aiosqlite
 
 EXPENSE = "expense"
 INCOME = "income"
+PLANS = ("free", "pro")  # extend here when paid tiers are added
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -133,6 +134,22 @@ class Database:
         )
         await self.conn.commit()
         return cur.rowcount > 0
+
+    async def active_plan(self, user_id: int, today: date | None = None) -> str:
+        """Effective plan: an expired paid plan counts as 'free'."""
+        u = await self.get_user(user_id)
+        if u is None:
+            return "free"
+        exp = u["plan_expires_at"]
+        if u["plan"] != "free" and exp and exp < (today or date.today()).isoformat():
+            return "free"
+        return u["plan"]
+
+    async def recent_users(self, limit: int = 10) -> list[aiosqlite.Row]:
+        async with self.conn.execute(
+            "SELECT * FROM users ORDER BY created_at DESC, user_id DESC LIMIT ?", (limit,)
+        ) as cur:
+            return list(await cur.fetchall())
 
     async def user_ids(self) -> list[int]:
         async with self.conn.execute("SELECT user_id FROM users WHERE is_blocked=0") as cur:

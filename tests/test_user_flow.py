@@ -1,12 +1,8 @@
-import importlib
-
 import pytest
 import pytest_asyncio
 from datetime import date
 
-from config import Settings
-from main import build_dispatcher
-from tests.helpers import Harness
+from tests.helpers import make_harness
 
 from database import EXPENSE, INCOME
 from keyboards import user as kb
@@ -14,9 +10,7 @@ from keyboards import user as kb
 
 @pytest_asyncio.fixture
 async def h(db):
-    import handlers.user
-    importlib.reload(handlers.user)  # fresh Router: a Router can attach to one Dispatcher only
-    return Harness(build_dispatcher(db, Settings(bot_token="x")))
+    return make_harness(db)
 
 
 async def test_start_registers_user(h, db):

@@ -10,7 +10,7 @@ from aiogram.enums import ParseMode
 
 from config import Settings, load_settings
 from database import Database
-from handlers import user
+from handlers import admin, user
 from reports.scheduler import monthly_report_loop
 
 
@@ -18,6 +18,7 @@ def build_dispatcher(db: Database, settings: Settings) -> Dispatcher:
     dp = Dispatcher()
     dp["db"] = db            # injected into handlers by parameter name
     dp["settings"] = settings
+    dp.include_router(admin.router)  # before user router so admin commands win
     dp.include_router(user.router)
     return dp
 

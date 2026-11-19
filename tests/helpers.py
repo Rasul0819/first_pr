@@ -69,13 +69,16 @@ class Harness:
         self.session.calls.clear()
 
 
-def make_harness(db, user_id: int = 1) -> "Harness":
+def make_harness(db, user_id: int = 1, admin_ids=(100,)) -> "Harness":
     """Fresh Dispatcher per test (a Router can only attach to one Dispatcher)."""
     import importlib
 
+    import handlers.admin
     import handlers.user
     from config import Settings
     from main import build_dispatcher
 
+    importlib.reload(handlers.admin)
     importlib.reload(handlers.user)
-    return Harness(build_dispatcher(db, Settings(bot_token="x")), user_id=user_id)
+    settings = Settings(bot_token="x", admin_ids=frozenset(admin_ids))
+    return Harness(build_dispatcher(db, settings), user_id=user_id)
