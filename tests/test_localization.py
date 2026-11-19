@@ -16,7 +16,7 @@ ENGLISH = {
     "expense", "expenses", "income", "report", "cancel", "cancelled", "category", "categories",
     "total", "balance", "net", "users", "statistics", "history", "saved", "deleted", "amount",
     "note", "skip", "choose", "enter", "usage", "month", "last", "this", "welcome", "source",
-    "transactions", "daily", "share", "savings", "rate", "date", "type", "admin", "panel",
+    "transactions", "daily", "share", "savings", "rate", "date", "type",
     "stats", "recent", "paid", "active", "found", "please", "invalid", "your", "the", "and",
 }
 
