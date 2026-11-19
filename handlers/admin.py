@@ -16,6 +16,7 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 from config import Settings
 from database import PLANS, Database
 from keyboards.admin import admin_panel
+from locales import kaa as T
 from utils import fmt_money
 
 
@@ -32,30 +33,26 @@ router.callback_query.filter(IsAdmin())
 
 async def stats_text(db: Database) -> str:
     s = await db.stats()
-    return "\n".join([
-        "📈 <b>Statistics</b>",
-        f"Users: <b>{s['users']}</b> (paid: {s['paid_users']})",
-        f"Active this month: <b>{s['active_month']}</b>",
-        f"Transactions: <b>{s['transactions']}</b>",
-        f"Total income logged: {fmt_money(s['income_cents'])}",
-        f"Total expenses logged: {fmt_money(s['expense_cents'])}",
-    ])
+    return T.STATS_TEXT.format(
+        users=s["users"], paid=s["paid_users"], active=s["active_month"],
+        transactions=s["transactions"], income=fmt_money(s["income_cents"]),
+        expense=fmt_money(s["expense_cents"]))
 
 
 async def users_text(db: Database) -> str:
     rows = await db.recent_users(10)
     if not rows:
-        return "No users yet."
-    lines = ["👥 <b>Recent users</b>"]
+        return T.USERS_EMPTY
+    lines = [T.USERS_TITLE]
     for r in rows:
         who = f"@{escape(r['username'])}" if r["username"] else escape(r["full_name"] or "—")
-        lines.append(f"<code>{r['user_id']}</code> {who} · {r['plan']}")
+        lines.append(f"<code>{r['user_id']}</code> {who} · {T.PLAN_NAMES.get(r['plan'], r['plan'])}")
     return "\n".join(lines)
 
 
 @router.message(Command("admin"))
 async def admin_cmd(message: Message) -> None:
-    await message.answer("🛠 <b>Admin panel</b>", reply_markup=admin_panel())
+    await message.answer(T.ADMIN_TITLE, reply_markup=admin_panel())
 
 
 @router.message(Command("stats"))
@@ -78,7 +75,7 @@ async def users_cb(call: CallbackQuery, db: Database) -> None:
 @router.message(Command("setplan"))
 async def setplan_cmd(message: Message, db: Database, command: CommandObject) -> None:
     """/setplan <user_id> <plan> [days]  — e.g. /setplan 123456 pro 30"""
-    usage = f"Usage: <code>/setplan &lt;user_id&gt; &lt;{'|'.join(PLANS)}&gt; [days]</code>"
+    usage = T.SETPLAN_USAGE.format(plans="|".join(PLANS))
     parts = (command.args or "").split()
     try:
         if not 2 <= len(parts) <= 3:
@@ -92,7 +89,7 @@ async def setplan_cmd(message: Message, db: Database, command: CommandObject) ->
         return
     expires = (date.today() + timedelta(days=days)).isoformat() if days and plan != "free" else None
     if not await db.set_plan(uid, plan, expires):
-        await message.answer(f"User <code>{uid}</code> not found.")
+        await message.answer(T.SETPLAN_NOT_FOUND.format(uid=uid))
         return
-    until = f" until {expires}" if expires else ""
-    await message.answer(f"✅ User <code>{uid}</code> is now <b>{plan}</b>{until}.")
+    until = T.SETPLAN_UNTIL.format(date=expires) if expires else ""
+    await message.answer(T.SETPLAN_OK.format(uid=uid, plan=T.PLAN_NAMES.get(plan, plan), until=until))

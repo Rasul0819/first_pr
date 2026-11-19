@@ -9,7 +9,8 @@ from locales import kaa as T
 
 ROOT = Path(__file__).resolve().parent.parent
 # Files whose literals must contain no human-readable text (grows per stage).
-TRANSLATED_FILES = ["handlers/user.py", "keyboards/user.py"]
+TRANSLATED_FILES = ["handlers/user.py", "keyboards/user.py",
+                    "handlers/admin.py", "keyboards/admin.py"]
 
 ENGLISH = {
     "expense", "expenses", "income", "report", "cancel", "cancelled", "category", "categories",
@@ -45,7 +46,7 @@ def _all_strings():
     for name in dir(T):
         v = getattr(T, name)
         if name.isupper():
-            for s in (v if isinstance(v, list) else [v]):
+            for s in (v if isinstance(v, list) else list(v.values()) if isinstance(v, dict) else [v]):
                 yield name, s
 
 

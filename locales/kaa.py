@@ -66,3 +66,23 @@ REPORT_CAPTION = (
     "Shıǵın: <b>{expense}</b>\n"
     "Qaldıq: <b>{net}</b>"
 )
+
+# ------------------------------------------------------------------ admin panel
+ADMIN_TITLE = "🛠 <b>Admin paneli</b>"
+BTN_ADMIN_STATS = "📈 Statistika"
+BTN_ADMIN_USERS = "👥 Sońǵı paydalanıwshılar"
+PLAN_NAMES = {"free": "Biypul", "pro": "Pro"}
+STATS_TEXT = (
+    "📈 <b>Statistika</b>\n"
+    "Paydalanıwshılar: <b>{users}</b> (pullı tarif: {paid})\n"
+    "Usı ayda aktiv: <b>{active}</b>\n"
+    "Jazıwlar sanı: <b>{transactions}</b>\n"
+    "Jámi kirim: {income}\n"
+    "Jámi shıǵın: {expense}"
+)
+USERS_TITLE = "👥 <b>Sońǵı paydalanıwshılar</b>"
+USERS_EMPTY = "Házirshe paydalanıwshılar joq."
+SETPLAN_USAGE = "Qollanıw: <code>/setplan &lt;user_id&gt; &lt;{plans}&gt; [kún]</code>"
+SETPLAN_NOT_FOUND = "Paydalanıwshı <code>{uid}</code> tabılmadı."
+SETPLAN_OK = "✅ <code>{uid}</code> paydalanıwshısınıń tarifi: <b>{plan}</b>{until}."
+SETPLAN_UNTIL = " — {date} sanasına shekem"

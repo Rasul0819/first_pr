@@ -32,13 +32,13 @@ async def test_non_admin_is_ignored(world):
 async def test_admin_panel_and_stats(world):
     h = make_harness(world, user_id=ADMIN)
     await h.send("/admin")
-    assert "Admin panel" in h.last()
+    assert h.last() == T.ADMIN_TITLE
     await h.send("/stats")
     out = h.last()
-    assert "Users: <b>3</b>" in out and "paid: 0" in out
+    assert "<b>3</b>" in out and "tarif: 0" in out
     assert "100.00" in out and "25.50" in out
     await h.click("adm:stats")
-    assert "Statistics" in h.last()
+    assert h.last().startswith("📈 <b>Statistika")
 
 
 async def test_recent_users_escapes_html(world):
@@ -54,7 +54,7 @@ async def test_setplan_with_expiry(world):
     u = await world.get_user(1)
     assert u["plan"] == "pro"
     assert u["plan_expires_at"] == (date.today() + timedelta(days=30)).isoformat()
-    assert "now <b>pro</b>" in h.last()
+    assert "<b>Pro</b>" in h.last()
     assert (await world.stats())["paid_users"] == 1
     await h.send("/setplan 1 free")
     u = await world.get_user(1)
@@ -65,14 +65,14 @@ async def test_setplan_with_expiry(world):
 async def test_setplan_bad_args(world, args):
     h = make_harness(world, user_id=ADMIN)
     await h.send(f"/setplan {args}")
-    assert "Usage" in h.last()
+    assert h.last().startswith("Qollanıw")
     assert (await world.get_user(1))["plan"] == "free"
 
 
 async def test_setplan_unknown_user(world):
     h = make_harness(world, user_id=ADMIN)
     await h.send("/setplan 555 pro")
-    assert "not found" in h.last()
+    assert "tabılmadı" in h.last()
 
 
 async def test_active_plan_expiry(world):
