@@ -6,6 +6,7 @@ from tests.helpers import make_harness
 
 from database import EXPENSE, INCOME
 from keyboards import user as kb
+from locales import kaa as T
 
 
 @pytest_asyncio.fixture
@@ -16,7 +17,7 @@ async def h(db):
 async def test_start_registers_user(h, db):
     await h.send("/start")
     assert (await db.get_user(1))["username"] == "alice"
-    assert "Tracker" in h.last()
+    assert "esabı" in h.last()
 
 
 async def test_expense_full_flow_with_note(h, db):
@@ -24,9 +25,9 @@ async def test_expense_full_flow_with_note(h, db):
     await h.send("12,50")
     await h.click("cat:0")
     await h.send("lunch <b>")
-    assert "Saved" in h.last() and "&lt;b&gt;" in h.last()  # HTML escaped
+    assert "Saqlandı" in h.last() and "&lt;b&gt;" in h.last()  # HTML escaped
     (t,) = await db.recent(1)
-    assert (t.kind, t.amount_cents, t.category, t.note) == (EXPENSE, 1250, "🍔 Food", "lunch <b>")
+    assert (t.kind, t.amount_cents, t.category, t.note) == (EXPENSE, 1250, T.EXPENSE_CATEGORIES[0], "lunch <b>")
     assert t.tx_date == date.today().isoformat()
 
 
@@ -53,14 +54,14 @@ async def test_income_preset_source(h, db):
     await h.send("200")
     await h.click("cat:0")
     (t,) = await db.recent(1)
-    assert t.kind == INCOME and t.category == "💼 Salary"
+    assert t.kind == INCOME and t.category == T.INCOME_SOURCES[0]
 
 
 @pytest.mark.parametrize("bad", ["abc", "-5", "0", "1.234", "nan"])
 async def test_invalid_amount_keeps_state(h, db, bad):
     await h.send(kb.BTN_EXPENSE)
     await h.send(bad)
-    assert "positive number" in h.last()
+    assert h.last() == T.BAD_AMOUNT
     await h.send("7")  # still in the amount step, now valid
     await h.click("cat:0")
     await h.click("note:skip")
@@ -79,7 +80,7 @@ async def test_cancel_button(h, db):
     await h.send(kb.BTN_EXPENSE)
     await h.send("10")
     await h.click("cancel")
-    assert h.last() == "Cancelled."
+    assert h.last() == T.CANCELLED
     assert await db.recent(1) == []
 
 
@@ -97,10 +98,10 @@ async def test_bad_category_index_and_long_inputs(h, db):
     await h.click("cat:99")
     await h.click("cat:custom")
     await h.send("x" * 31)
-    assert "1–30" in h.last()
+    assert h.last() == T.BAD_NAME.format(max=30)
     await h.send("Pets")
     await h.send("n" * 201)
-    assert "too long" in h.last()
+    assert h.last() == T.NOTE_TOO_LONG.format(max=200)
     assert await db.recent(1) == []
     await h.send("ok")
     assert (await db.recent(1))[0].category == "Pets"
@@ -108,7 +109,7 @@ async def test_bad_category_index_and_long_inputs(h, db):
 
 async def test_history_and_delete(h, db):
     await h.send(kb.BTN_HISTORY)
-    assert "No entries" in h.last()
+    assert h.last() == T.HISTORY_EMPTY
     await db.upsert_user(1, "alice", "Alice")
     a =await db.add_transaction(1, EXPENSE, 100, "A")
     await db.add_transaction(1, INCOME, 200, "B")

@@ -1,21 +1,17 @@
 """Keyboards for regular users."""
 from __future__ import annotations
 
-from aiogram.types import (InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton,
-                           ReplyKeyboardMarkup)
+from aiogram.types import (InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database import Transaction
+from locales import kaa as T
 from utils import fmt_money
 
-BTN_EXPENSE = "➖ Expense"
-BTN_INCOME = "➕ Income"
-BTN_REPORT = "📊 Report"
-BTN_HISTORY = "🕘 History"
-
-EXPENSE_CATEGORIES = ["🍔 Food", "🚌 Transport", "🏠 Housing", "🛍 Shopping",
-                      "💊 Health", "🎬 Fun", "📚 Education", "📦 Other"]
-INCOME_SOURCES = ["💼 Salary", "🧾 Freelance", "🎁 Gift", "📈 Investments", "📦 Other"]
+# Re-exported so handlers/tests match menu text without importing locales directly.
+BTN_EXPENSE, BTN_INCOME = T.BTN_EXPENSE, T.BTN_INCOME
+BTN_REPORT, BTN_HISTORY = T.BTN_REPORT, T.BTN_HISTORY
+EXPENSE_CATEGORIES, INCOME_SOURCES = T.EXPENSE_CATEGORIES, T.INCOME_SOURCES
 
 
 def main_menu() -> ReplyKeyboardMarkup:
@@ -30,24 +26,24 @@ def category_kb(options: list[str]) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     for i, name in enumerate(options):
         b.button(text=name, callback_data=f"cat:{i}")
-    b.button(text="✏️ Custom…", callback_data="cat:custom")
-    b.button(text="✖️ Cancel", callback_data="cancel")
+    b.button(text=T.BTN_CUSTOM, callback_data="cat:custom")
+    b.button(text=T.BTN_CANCEL, callback_data="cancel")
     b.adjust(2)
     return b.as_markup()
 
 
 def skip_note_kb() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text="⏭ Skip note", callback_data="note:skip")
-    b.button(text="✖️ Cancel", callback_data="cancel")
+    b.button(text=T.BTN_SKIP_NOTE, callback_data="note:skip")
+    b.button(text=T.BTN_CANCEL, callback_data="cancel")
     b.adjust(2)
     return b.as_markup()
 
 
 def report_kb() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text="This month", callback_data="report:current")
-    b.button(text="Last month", callback_data="report:previous")
+    b.button(text=T.BTN_REPORT_CURRENT, callback_data="report:current")
+    b.button(text=T.BTN_REPORT_PREVIOUS, callback_data="report:previous")
     b.adjust(2)
     return b.as_markup()
 

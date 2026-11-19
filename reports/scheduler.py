@@ -9,8 +9,8 @@ from aiogram import Bot
 from aiogram.types import BufferedInputFile
 
 from database import Database
-from reports.monthly import generate_monthly_report, month_title
-from utils import previous_month
+from reports.monthly import generate_monthly_report
+from utils import month_title, previous_month
 
 log = logging.getLogger(__name__)
 SEND_HOUR = 9  # local server time

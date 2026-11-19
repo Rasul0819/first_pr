@@ -1,4 +1,4 @@
-"""User-facing flows: logging expenses/income, history, deleting entries."""
+"""User-facing flows: logging expenses/income, history, deleting entries, reports."""
 from __future__ import annotations
 
 from html import escape
@@ -11,8 +11,9 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from database import EXPENSE, INCOME, Database, to_cents
 from keyboards import user as kb
-from reports.monthly import generate_monthly_report, month_title
-from utils import current_year_month, fmt_money, previous_month
+from locales import kaa as T
+from reports.monthly import generate_monthly_report
+from utils import current_year_month, fmt_money, month_title, previous_month
 
 router = Router(name="user")
 
@@ -31,34 +32,25 @@ def _options(kind: str) -> list[str]:
     return kb.EXPENSE_CATEGORIES if kind == EXPENSE else kb.INCOME_SOURCES
 
 
-def _label(kind: str) -> str:
-    return "category" if kind == EXPENSE else "source"
-
-
 # --------------------------------------------------------------- basics
 @router.message(CommandStart())
 async def start(message: Message, state: FSMContext, db: Database) -> None:
     await state.clear()
     u = message.from_user
     await db.upsert_user(u.id, u.username, u.full_name)
-    await message.answer(
-        "👋 <b>Expense &amp; Income Tracker</b>\n\n"
-        "Log what you spend and earn, then get a monthly Excel dashboard.\n"
-        "Use the menu below. /cancel stops any action.",
-        reply_markup=kb.main_menu(),
-    )
+    await message.answer(T.WELCOME, reply_markup=kb.main_menu())
 
 
 @router.message(Command("cancel"), StateFilter("*"))
 async def cancel_cmd(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Cancelled.", reply_markup=kb.main_menu())
+    await message.answer(T.CANCELLED, reply_markup=kb.main_menu())
 
 
 @router.callback_query(F.data == "cancel", StateFilter("*"))
 async def cancel_cb(call: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
-    await call.message.edit_text("Cancelled.")
+    await call.message.edit_text(T.CANCELLED)
     await call.answer()
 
 
@@ -69,8 +61,7 @@ async def _begin(message: Message, state: FSMContext, db: Database, kind: str) -
     await state.clear()
     await state.set_state(AddTx.amount)
     await state.update_data(kind=kind)
-    what = "expense" if kind == EXPENSE else "income"
-    await message.answer(f"Enter the {what} amount (e.g. <code>12.50</code>):")
+    await message.answer(T.ASK_AMOUNT_EXPENSE if kind == EXPENSE else T.ASK_AMOUNT_INCOME)
 
 
 @router.message(F.text == kb.BTN_EXPENSE, StateFilter("*"))
@@ -88,12 +79,13 @@ async def got_amount(message: Message, state: FSMContext) -> None:
     try:
         cents = to_cents(message.text)
     except ValueError:
-        await message.answer("❗ Please send a positive number with up to 2 decimals, e.g. <code>12.50</code>.")
+        await message.answer(T.BAD_AMOUNT)
         return
     data = await state.get_data()
     await state.update_data(cents=cents)
     await state.set_state(AddTx.category)
-    await message.answer(f"Amount: <b>{fmt_money(cents)}</b>\nChoose a {_label(data['kind'])}:",
+    prompt = T.CHOOSE_CATEGORY if data["kind"] == EXPENSE else T.CHOOSE_SOURCE
+    await message.answer(prompt.format(amount=fmt_money(cents)),
                          reply_markup=kb.category_kb(_options(data["kind"])))
 
 
@@ -102,8 +94,7 @@ async def _after_category(target: Message, state: FSMContext, db: Database, user
     await state.update_data(category=category)
     if data["kind"] == EXPENSE:
         await state.set_state(AddTx.note)
-        await target.answer(f"Category: <b>{escape(category)}</b>\nAdd a note (or skip):",
-                            reply_markup=kb.skip_note_kb())
+        await target.answer(T.ASK_NOTE.format(category=escape(category)), reply_markup=kb.skip_note_kb())
     else:
         await _save(target, state, db, user_id, note="")
 
@@ -112,7 +103,8 @@ async def _after_category(target: Message, state: FSMContext, db: Database, user
 async def custom_cat(call: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
     await state.set_state(AddTx.custom_category)
-    await call.message.edit_text(f"Type your {_label(data['kind'])} name (max {MAX_CATEGORY} chars):")
+    prompt = T.CUSTOM_PROMPT_CATEGORY if data["kind"] == EXPENSE else T.CUSTOM_PROMPT_SOURCE
+    await call.message.edit_text(prompt.format(max=MAX_CATEGORY))
     await call.answer()
 
 
@@ -122,7 +114,7 @@ async def pick_cat(call: CallbackQuery, state: FSMContext, db: Database) -> None
     opts = _options(data["kind"])
     idx = int(call.data.split(":")[1])
     if idx >= len(opts):
-        await call.answer("Unknown option", show_alert=True)
+        await call.answer(T.UNKNOWN_OPTION, show_alert=True)
         return
     await call.message.edit_reply_markup(reply_markup=None)
     await _after_category(call.message, state, db, call.from_user.id, opts[idx])
@@ -133,7 +125,7 @@ async def pick_cat(call: CallbackQuery, state: FSMContext, db: Database) -> None
 async def got_custom_cat(message: Message, state: FSMContext, db: Database) -> None:
     name = message.text.strip()
     if not name or len(name) > MAX_CATEGORY:
-        await message.answer(f"❗ Name must be 1–{MAX_CATEGORY} characters.")
+        await message.answer(T.BAD_NAME.format(max=MAX_CATEGORY))
         return
     await _after_category(message, state, db, message.from_user.id, name)
 
@@ -149,7 +141,7 @@ async def skip_note(call: CallbackQuery, state: FSMContext, db: Database) -> Non
 async def got_note(message: Message, state: FSMContext, db: Database) -> None:
     note = message.text.strip()
     if len(note) > MAX_NOTE:
-        await message.answer(f"❗ Note is too long (max {MAX_NOTE} chars).")
+        await message.answer(T.NOTE_TOO_LONG.format(max=MAX_NOTE))
         return
     await _save(message, state, db, message.from_user.id, note=note)
 
@@ -159,17 +151,17 @@ async def _save(target: Message, state: FSMContext, db: Database, user_id: int, 
     await state.clear()
     await db.add_transaction(user_id, data["kind"], data["cents"], data["category"], note)
     sign = "−" if data["kind"] == EXPENSE else "+"
-    text = f"✅ Saved: <b>{sign}{fmt_money(data['cents'])}</b> · {escape(data['category'])}"
+    text = T.SAVED.format(sign=sign, amount=fmt_money(data["cents"]), category=escape(data["category"]))
     if note:
-        text += f"\n📝 {escape(note)}"
+        text += T.SAVED_NOTE_LINE.format(note=escape(note))
     await target.answer(text, reply_markup=kb.main_menu())
 
 
 # --------------------------------------------------------------- history
 def _history_text(txs) -> str:
     if not txs:
-        return "No entries yet. Add one with ➖ Expense or ➕ Income."
-    lines = ["🕘 <b>Last entries</b> (tap to delete):"]
+        return T.HISTORY_EMPTY
+    lines = [T.HISTORY_TITLE]
     for t in txs:
         sign = "−" if t.kind == EXPENSE else "+"
         note = f" — {escape(t.note)}" if t.note else ""
@@ -190,26 +182,23 @@ async def delete_tx(call: CallbackQuery, db: Database) -> None:
     ok = await db.delete_transaction(call.from_user.id, int(call.data.split(":")[1]))
     txs = await db.recent(call.from_user.id, 10)
     await call.message.edit_text(_history_text(txs), reply_markup=kb.history_kb(txs) if txs else None)
-    await call.answer("Deleted" if ok else "Already deleted")
+    await call.answer(T.DELETED if ok else T.ALREADY_DELETED)
 
 
 # --------------------------------------------------------------- report
 async def _send_report(target: Message, db: Database, user, year: int, month: int) -> None:
     s = await db.month_summary(user.id, year, month)
     name, data = await generate_monthly_report(db, user.id, year, month, owner=user.full_name)
-    caption = "\n".join([
-        f"📊 <b>{month_title(year, month)}</b>",
-        f"Income: <b>{fmt_money(s.income_cents)}</b>",
-        f"Expenses: <b>{fmt_money(s.expense_cents)}</b>",
-        f"Net: <b>{fmt_money(s.net_cents)}</b>",
-    ])
+    caption = T.REPORT_CAPTION.format(
+        title=month_title(year, month), income=fmt_money(s.income_cents),
+        expense=fmt_money(s.expense_cents), net=fmt_money(s.net_cents))
     await target.answer_document(BufferedInputFile(data, name), caption=caption)
 
 
 @router.message(F.text == kb.BTN_REPORT, StateFilter("*"))
 async def report_menu(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("Which month?", reply_markup=kb.report_kb())
+    await message.answer(T.REPORT_WHICH_MONTH, reply_markup=kb.report_kb())
 
 
 @router.message(Command("report"), StateFilter("*"))
@@ -224,7 +213,7 @@ async def report_cmd(message: Message, state: FSMContext, db: Database, command:
             if not (1 <= month <= 12 and 2000 <= year <= 2100):
                 raise ValueError
         except ValueError:
-            await message.answer("Usage: <code>/report</code> or <code>/report 2025-03</code>")
+            await message.answer(T.REPORT_USAGE)
             return
     await _send_report(message, db, message.from_user, year, month)
 
@@ -232,5 +221,5 @@ async def report_cmd(message: Message, state: FSMContext, db: Database, command:
 @router.callback_query(F.data.in_({"report:current", "report:previous"}))
 async def report_cb(call: CallbackQuery, db: Database) -> None:
     year, month = current_year_month() if call.data == "report:current" else previous_month()
-    await call.answer("Generating…")
+    await call.answer(T.REPORT_GENERATING)
     await _send_report(call.message, db, call.from_user, year, month)

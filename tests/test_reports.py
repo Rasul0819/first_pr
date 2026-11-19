@@ -9,10 +9,12 @@ from openpyxl import load_workbook
 from config import Settings
 from database import EXPENSE, INCOME
 from main import build_dispatcher
-from reports.monthly import generate_monthly_report, month_title
+from reports.monthly import generate_monthly_report
+from utils import month_title
 from reports.scheduler import seconds_until_next_run, send_monthly_reports
 from tests.helpers import make_harness
 from keyboards import user as kb
+from locales import kaa as T
 from datetime import datetime
 
 
@@ -34,7 +36,7 @@ async def test_workbook_contents(seeded):
     wb = load_workbook(BytesIO(data))
     assert wb.sheetnames == ["Dashboard", "Daily", "Transactions"]
     ws = wb["Dashboard"]
-    assert "March 2025" in ws["A1"].value
+    assert "2025-jıl Mart" in ws["A1"].value
     assert ws["A4"].value == 3500.0          # income
     assert ws["C4"].value == 1500.5          # expenses
     assert ws["E4"].value == pytest.approx(1999.5)  # net
@@ -84,7 +86,7 @@ async def test_negative_net_and_only_income(db):
 
 
 def test_month_title():
-    assert month_title(2025, 3) == "March 2025"
+    assert month_title(2025, 3) == "2025-jıl Mart"
 
 
 # ---- bot integration
@@ -102,7 +104,7 @@ async def test_report_command_sends_document(h):
 
 async def test_report_button_flow_current_month(h):
     await h.send(kb.BTN_REPORT)
-    assert "Which month" in h.last()
+    assert h.last() == T.REPORT_WHICH_MONTH
     await h.click("report:current")
     await h.click("report:previous")
     assert len(h.documents()) == 2
@@ -111,7 +113,7 @@ async def test_report_button_flow_current_month(h):
 @pytest.mark.parametrize("arg", ["2025-13", "abc", "2025", "1999-01", "2025-03-01"])
 async def test_report_bad_args(h, arg):
     await h.send(f"/report {arg}")
-    assert "Usage" in h.last() and not h.documents()
+    assert h.last() == T.REPORT_USAGE and not h.documents()
 
 
 async def test_scheduler_sends_only_to_active_users(seeded):

@@ -13,15 +13,12 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from database import EXPENSE, Database, MonthSummary, Transaction
+from utils import month_title
 
 MONEY = '#,##0.00'
 GREEN, RED, DARK, LIGHT, GREY = "2E7D32", "C62828", "263238", "ECEFF1", "607D8B"
 THIN = Side(style="thin", color="CFD8DC")
 BOX = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
-
-
-def month_title(year: int, month: int) -> str:
-    return f"{calendar.month_name[month]} {year}"
 
 
 def _text(cell, value) -> None:

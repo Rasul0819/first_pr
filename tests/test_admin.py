@@ -4,6 +4,7 @@ import pytest
 import pytest_asyncio
 
 from database import EXPENSE, INCOME
+from locales import kaa as T
 from tests.helpers import make_harness
 
 ADMIN = 100
@@ -86,4 +87,4 @@ async def test_active_plan_expiry(world):
 async def test_admin_can_still_use_user_features(world):
     h = make_harness(world, user_id=ADMIN)
     await h.send("/start")
-    assert "Tracker" in h.last()
+    assert h.last() == T.WELCOME
